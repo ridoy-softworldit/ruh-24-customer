@@ -4,31 +4,32 @@
 import { useEffect } from "react";
 import { useAppDispatch } from "@/redux/hooks";
 import { setUser } from "@/redux/featured/auth/authSlice";
-import { getSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 
 export default function AuthSync() {
+  const { data: session } = useSession();
   const dispatch = useAppDispatch();
 
   useEffect(() => {
-    const syncSession = async () => {
-      const session = await getSession();
-      
-      if (session?.user) {
-        const userData = {
-          _id: session.user.id,
-          id: session.user.id,
-          name: session.user.name,
-          email: session.user.email,
-          role: session.user.role,
-          gender: session.user.gender,
-          walletPoint: session.user.walletPoint,
-        };
-        dispatch(setUser(userData));
-      }
-    };
-
-    syncSession();
-  }, [dispatch]);
+    if (session?.user) {
+      const userData = {
+        _id: session.user.id,
+        id: session.user.id,
+        name: session.user.name,
+        email: session.user.email,
+        role: session.user.role,
+        gender: session.user.gender,
+        walletPoint: session.user.walletPoint,
+        contactNo: session.user.contactNo,
+        bio: session.user.bio,
+      };
+      const token = (session.user as { accessToken?: string }).accessToken;
+      dispatch(setUser({ 
+        user: userData, 
+        token: token || null 
+      }));
+    }
+  }, [session, dispatch]);
 
   return null;
 }

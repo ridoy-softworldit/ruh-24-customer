@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { CheckCircle, Info, Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 
 // Define TypeScript interfaces based on the provided data structure
 interface TotalAmount {
@@ -13,10 +14,17 @@ interface TotalAmount {
   total: number;
 }
 
+interface ProductInfo {
+  _id: string;
+  featuredImg: string;
+  description: { name: string };
+  productInfo: { price: number; salePrice: number };
+}
+
 interface OrderInfo {
   trackingNumber: number;
   orderBy: string;
-  productInfo: string;
+  productInfo: ProductInfo;
   status: string;
   isCancelled: boolean;
   quantity: number;
@@ -192,10 +200,23 @@ export default function OrderConfirmation() {
                 </div>
               </div>
 
-              {/* Confirmation Message */}
+              {/* Order Preview */}
               <div className="mb-6 md:mb-8 pb-6 md:pb-8 border-b border-gray-200">
-                <p className="text-sm sm:text-base text-gray-700">
-                  Your order confirmation will be sent to you via email and SMS.
+                <h2 className="font-bold text-gray-900 mb-4 text-base sm:text-lg">Order Items</h2>
+                <div className="space-y-3">
+                  {orderInfo.map((item, index) => (
+                    <div key={index} className="flex gap-3 p-3 bg-gray-50 rounded-lg">
+                      <Image src={item.productInfo.featuredImg} alt={item.productInfo.description.name} width={80} height={80} className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded" />
+                      <div className="flex-1">
+                        <h3 className="font-medium text-sm sm:text-base text-gray-900">{item.productInfo.description.name}</h3>
+                        <p className="text-xs sm:text-sm text-gray-600">Quantity: {item.quantity}</p>
+                        <p className="text-sm sm:text-base font-semibold text-gray-900 mt-1">৳ {item.totalAmount.total}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs sm:text-sm text-gray-600 mt-4">
+                  Your order has been successfully placed. You can track your order status anytime.
                 </p>
               </div>
 
