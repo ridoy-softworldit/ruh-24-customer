@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Lock, CheckCircle, AlertCircle, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-
+import Logo from "/public/logo.png";
 export default function ResetPasswordPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -75,7 +75,7 @@ export default function ResetPasswordPage() {
         <div className="text-center">
           <Link href="/">
             <Image
-              src="https://res.cloudinary.com/dvbnagad5/image/upload/v1758109967/bdmbazarlogo_ujourw.jpg"
+              src={Logo}
               alt="logo"
               width={100}
               height={100}

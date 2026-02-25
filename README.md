@@ -1,1 +1,1 @@
-bdm bazar customer
+Ruh 24 customer frontend

@@ -101,7 +101,7 @@ export default function AuthForm({ type }: AuthFormProps) {
       <Link href={"/"}>
         <div className="flex justify-center">
           <Image
-            src="https://res.cloudinary.com/dvbnagad5/image/upload/v1758109967/bdmbazarlogo_ujourw.jpg"
+            src={Logo}
             alt="logo"
             width={100}
             height={100}

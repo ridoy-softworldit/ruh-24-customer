@@ -3,7 +3,7 @@
 "use client";
 
 import BookCoverCard from "@/Component/Page/BookCoverCard";
-import ProductDetails from "@/Component/Page/ProductDetails";
+import ProductDetails, { renderSpecifications } from "@/Component/Page/ProductDetails";
 import RelatedBooks from "@/Component/Page/RelatedBooks";
 import { useGetAllReviewsQuery } from "@/redux/api/reviewApi";
 import { ApiBook, ApiResponse, Book, RelatedBook } from "@/types/boook";
@@ -31,6 +31,7 @@ export default function BookProductPage({ params }: BookProductPageProps) {
   const [isBookCategory, setIsBookCategory] = useState<boolean>(true);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [brandName, setBrandName] = useState<string>("");
   const { data: session } = useSession();
   const user = useAppSelector(selectCurrentUser);
   const { data: approvedReviews } = useGetApprovedReviewsByProductQuery(id);
@@ -42,6 +43,7 @@ export default function BookProductPage({ params }: BookProductPageProps) {
   const [photos, setPhotos] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [showPreview, setShowPreview] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<'reviews' | 'specifications'>('reviews');
 
   const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,6 +102,22 @@ export default function BookProductPage({ params }: BookProductPageProps) {
 
         if (result.success && !Array.isArray(result.data)) {
           const productData: ApiBook = result.data;
+          
+          // Fetch brand if brand ID exists
+          if (productData.productInfo?.brand) {
+            try {
+              const brandResponse = await fetch(
+                `${process.env.NEXT_PUBLIC_BASE_API}/brand/${productData.productInfo.brand}`
+              );
+              const brandResult = await brandResponse.json();
+              if (brandResult.success && brandResult.data?.name) {
+                setBrandName(brandResult.data.name);
+              }
+            } catch (err) {
+              console.error("Failed to fetch brand:", err);
+            }
+          }
+          
           const mappedBook: Book = {
             id: productData._id,
             title: productData.description.name,
@@ -108,6 +126,8 @@ export default function BookProductPage({ params }: BookProductPageProps) {
               productData.bookInfo?.specification?.authors?.[0]?.name ||
               productData.categoryAndTags?.publisher ||
               "Brand/Publisher",
+            authorId: productData.bookInfo?.specification?.authors?.[0]?._id,
+            authors: productData.bookInfo?.specification?.authors,
             image: productData.featuredImg,
             stars: productData.averageRating,
             reviews: productData.reviewCount,
@@ -125,9 +145,12 @@ export default function BookProductPage({ params }: BookProductPageProps) {
             edition: productData.bookInfo?.specification?.edition,
             editionYear: productData.bookInfo?.specification?.editionYear,
             publisher: productData.bookInfo?.specification?.publisher || productData.categoryAndTags?.publisher,
+            language: productData.bookInfo?.specification?.language,
+            country: productData.bookInfo?.specification?.country,
+            genre: productData.bookInfo?.genre,
+            translator: productData.bookInfo?.translator,
             previewImg: productData.previewImg,
             previewPdf: productData.previewPdf,
-            // ✅ Handle preview images safely
           };
           setMainBook(mappedBook);
 
@@ -160,39 +183,69 @@ export default function BookProductPage({ params }: BookProductPageProps) {
         );
         const result: ApiResponse = await response.json();
 
-        if (result.success && Array.isArray(result.data)) {
-          const filteredBooks: RelatedBook[] = result.data
-            .filter((book: ApiBook) => {
-              if (book._id === id) return false; // exclude current book
+        if (result.success && Array.isArray(result.data) && reviews?.data) {
+          const filteredBooks: RelatedBook[] = await Promise.all(
+            result.data
+              .filter((book: ApiBook) => {
+                if (book._id === id) return false;
+                const categoriesMatch = book.categoryAndTags?.categories?.some(
+                  (c) =>
+                    categoryNames.some(
+                      (name) =>
+                        c?.name?.trim().toLowerCase() === name.trim().toLowerCase()
+                    )
+                );
+                return categoriesMatch;
+              })
+              .slice(0, 4)
+              .map(async (bookData: ApiBook, index: number) => {
+                const categoryName = bookData.categoryAndTags?.categories?.[0]?.name;
+                const bookCategories = ['book', 'books', 'বই', 'novel', 'story', 'literature', 'fiction', 'non-fiction'];
+                const isBook = categoryName ? bookCategories.some((cat: string) => 
+                  categoryName.toLowerCase().includes(cat.toLowerCase())
+                ) : false;
 
-              // Categories match only
-              const categoriesMatch = book.categoryAndTags?.categories?.some(
-                (c) =>
-                  categoryNames.some(
-                    (name) =>
-                      c?.name?.trim().toLowerCase() === name.trim().toLowerCase()
-                  )
-              );
+                let author = "Brand/Publisher";
+                if (isBook) {
+                  author = bookData.bookInfo?.specification?.authors?.[0]?.name ||
+                    bookData.categoryAndTags?.publisher ||
+                    "Unknown Author";
+                } else if (bookData.productInfo?.brand && typeof bookData.productInfo.brand === 'string') {
+                  try {
+                    const brandRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_API}/brand/${bookData.productInfo.brand}`);
+                    const brandData = await brandRes.json();
+                    if (brandData.success && brandData.data?.name) {
+                      author = brandData.data.name;
+                    }
+                  } catch (err) {
+                    console.error('Brand fetch error:', err);
+                  }
+                }
 
-              return categoriesMatch;
-            })
-            .slice(0, 4) // max 4 books
-            .map((bookData: ApiBook, index: number) => ({
-              id: bookData._id,
-              title: bookData.description.name,
-              author:
-                bookData.bookInfo?.specification?.authors?.[0]?.name ||
-                bookData.categoryAndTags?.publisher ||
-                "Brand/Publisher",
-              cover: bookData.featuredImg,
-              bgColor: getBgColor(index),
-              stars: bookData.averageRating,
-              reviews: bookData.reviewCount,
-              price:
-                bookData.productInfo.salePrice || bookData.productInfo.price,
-              originalPrice: bookData.productInfo.price,
-              description: bookData.description.description,
-            }));
+                const productReviews = reviews.data.filter(
+                  (review: any) => {
+                    const reviewProductId = typeof review.product === 'string' ? review.product : review.product?._id;
+                    return reviewProductId === bookData._id && review.status === "approved";
+                  }
+                );
+                const avgRating = productReviews.length
+                  ? productReviews.reduce((sum: number, r: any) => sum + r.rating, 0) / productReviews.length
+                  : 0;
+
+                return {
+                  id: bookData._id,
+                  title: bookData.description.name,
+                  author,
+                  cover: bookData.featuredImg,
+                  bgColor: getBgColor(index),
+                  stars: avgRating,
+                  reviews: productReviews.length,
+                  price: bookData.productInfo.salePrice || bookData.productInfo.price,
+                  originalPrice: bookData.productInfo.price,
+                  description: bookData.description.description,
+                };
+              })
+          );
 
           setRelatedBooks(filteredBooks);
         }
@@ -212,7 +265,7 @@ export default function BookProductPage({ params }: BookProductPageProps) {
     }
 
     fetchMainBook();
-  }, [id]);
+  }, [id, reviews]);
 
   if (loading) {
     return (
@@ -242,9 +295,22 @@ export default function BookProductPage({ params }: BookProductPageProps) {
             <div className="flex flex-col">
               <ProductDetails
                 {...mainBook}
-                title={`${mainBook.title} (${mainBook.binding})`}
+                title={mainBook.binding ? `${mainBook.title} (${mainBook.binding})` : mainBook.title}
                 showPreview={showPreview}
                 onPreviewClose={() => setShowPreview(false)}
+                brandName={brandName}
+                isBookCategory={isBookCategory}
+                language={mainBook.language}
+                country={mainBook.country}
+                genre={mainBook.genre}
+                translator={mainBook.translator}
+                authors={mainBook.authors}
+                stars={
+                  approvedReviews?.data?.length
+                    ? approvedReviews.data.reduce((sum: number, r: any) => sum + r.rating, 0) / approvedReviews.data.length
+                    : mainBook.stars
+                }
+                reviews={approvedReviews?.data?.length || mainBook.reviews}
               />
             </div>
           </div>
@@ -252,8 +318,36 @@ export default function BookProductPage({ params }: BookProductPageProps) {
             <RelatedBooks books={relatedBooks} isBookCategory={isBookCategory} />
           </div>
         </div>
-        {/* Reviews Section */}
+        {/* Reviews & Specifications Section */}
         <div className="mt-16">
+          {/* Tabs */}
+          <div className="flex border-b mb-6">
+            <button
+              onClick={() => setActiveTab('reviews')}
+              className={`px-6 py-3 font-semibold transition-colors ${
+                activeTab === 'reviews'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Customer Reviews
+            </button>
+            <button
+              onClick={() => setActiveTab('specifications')}
+              className={`px-6 py-3 font-semibold transition-colors ${
+                activeTab === 'specifications'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Specifications
+            </button>
+          </div>
+
+          {/* Tab Content */}
+          {activeTab === 'reviews' ? (
+            <div>
+            <div>
           {/* Header */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 gap-2">
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">
@@ -320,7 +414,7 @@ export default function BookProductPage({ params }: BookProductPageProps) {
                   {/* Review Photos */}
                   {review.photos?.length > 0 && (
                     <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {review.photos.map((photo: string, idx: number) => (
+                      {review.photos.filter((photo: string) => photo).map((photo: string, idx: number) => (
                         <Image
                           key={idx}
                           src={photo}
@@ -453,6 +547,25 @@ export default function BookProductPage({ params }: BookProductPageProps) {
                 </span>{" "}
                 to write a review.
               </p>
+            </div>
+          )}
+        </div>
+            </div>
+          ) : (
+            <div className="p-6 bg-white rounded-xl shadow border border-gray-100">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">Product Specifications</h2>
+              {renderSpecifications({
+                publisher: mainBook.publisher,
+                edition: mainBook.edition,
+                editionYear: mainBook.editionYear,
+                numberOfPages: mainBook.numberOfPages,
+                language: mainBook.language,
+                country: mainBook.country,
+                binding: mainBook.binding,
+                isbn: mainBook.isbn,
+                genre: mainBook.genre,
+                translator: mainBook.translator,
+              })}
             </div>
           )}
         </div>
