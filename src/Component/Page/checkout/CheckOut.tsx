@@ -15,6 +15,7 @@ import CheckoutOptions from "./CheckoutOptions";
 import useSettings from "@/hooks/useSettings";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import OrderPreview from "./OrderPreview";
 
 // Zod Schema
 const objectIdSchema = z
@@ -127,6 +128,7 @@ const CheckOut: React.FC = () => {
   const user = useAppSelector(selectCurrentUser);
   const { data: session } = useSession();
   const [checkoutType, setCheckoutType] = useState<"guest" | "user" | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
   
   // Auto-detect if user is logged in and set checkout type
   useEffect(() => {
@@ -157,6 +159,31 @@ const CheckOut: React.FC = () => {
   const [errors, setErrors] = useState<string[]>([]);
   const [triggerValidation, setTriggerValidation] = useState(false);
 
+  const handleShowPreview = () => {
+    setTriggerValidation(true);
+    
+    const missingFields = [];
+    if (!customerInfo.firstName) missingFields.push("First Name");
+    if (!customerInfo.lastName) missingFields.push("Last Name");
+    if (!customerInfo.phone) missingFields.push("Phone Number");
+    if (!customerInfo.city) missingFields.push("District");
+    if (!customerInfo.area) missingFields.push("Upazila");
+    if (!customerInfo.zone) missingFields.push("Zone");
+    if (!customerInfo.address || customerInfo.address.trim() === "") missingFields.push("Address");
+    
+    if (missingFields.length > 0) {
+      Swal.fire({
+        icon: "error",
+        title: "Required Fields Missing",
+        text: `Please fill in: ${missingFields.join(", ")}`,
+        confirmButtonColor: "#3085d6",
+      });
+      return;
+    }
+
+    setShowPreview(true);
+  };
+
   const subtotal: number = items.reduce(
     (acc: number, item: CartItem) => acc + item.price * item.quantity,
     0
@@ -184,9 +211,6 @@ const CheckOut: React.FC = () => {
   const discount = 5;
 
   const handleOrderConfirm = async (): Promise<void> => {
-    // Trigger validation to show all field errors
-    setTriggerValidation(true);
-    
     // Validate checkout type and user authentication
     if (checkoutType === "user" && !user?._id) {
       Swal.fire({
@@ -197,36 +221,6 @@ const CheckOut: React.FC = () => {
       }).then(() => {
         const currentUrl = window.location.pathname + window.location.search;
         router.push(`/auth/login?redirect=${encodeURIComponent(currentUrl)}`);
-      });
-      return;
-    }
-
-    // Validate detailed address is required
-    if (!customerInfo.address || customerInfo.address.trim() === "") {
-      Swal.fire({
-        icon: "error",
-        title: "Address Required",
-        text: "Please fill in the detailed address field.",
-        confirmButtonColor: "#3085d6",
-      });
-      return;
-    }
-
-    // Validate all required fields
-    const missingFields = [];
-    if (!customerInfo.firstName) missingFields.push("First Name");
-    if (!customerInfo.lastName) missingFields.push("Last Name");
-    if (!customerInfo.phone) missingFields.push("Phone Number");
-    if (!customerInfo.city) missingFields.push("District");
-    if (!customerInfo.area) missingFields.push("Upazila");
-    if (!customerInfo.zone) missingFields.push("Zone");
-    
-    if (missingFields.length > 0) {
-      Swal.fire({
-        icon: "error",
-        title: "Required Fields Missing",
-        text: `Please fill in: ${missingFields.join(", ")}`,
-        confirmButtonColor: "#3085d6",
       });
       return;
     }
@@ -351,6 +345,19 @@ const CheckOut: React.FC = () => {
     }
   };
 
+  if (showPreview) {
+    return (
+      <OrderPreview
+        items={items}
+        customerInfo={customerInfo}
+        deliveryCharge={deliveryCharge}
+        subtotal={subtotal}
+        onEdit={() => setShowPreview(false)}
+        onConfirm={handleOrderConfirm}
+      />
+    );
+  }
+
   if (!checkoutType) {
     return (
       <div className="bg-gray-50 min-h-screen font-sans text-gray-800 p-4 sm:p-8">
@@ -428,7 +435,7 @@ const CheckOut: React.FC = () => {
                 mode="confirm"
                 subtotal={subtotal}
                 deliveryCharge={deliveryCharge}
-                onConfirm={handleOrderConfirm}
+                onConfirm={handleShowPreview}
               />
             </div>
           </div>

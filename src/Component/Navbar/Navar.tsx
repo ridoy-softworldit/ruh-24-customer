@@ -170,7 +170,7 @@ export default function Navbar({ isMobileMenuOpen, setIsMobileMenuOpen }: Navbar
           <div className="max-w-7xl mx-auto">
             <div className="flex justify-between items-center py-2 text-sm text-gray-600">
               <div className="text-gray-500 text-[12px]">
-                {(typeof settings?.data?.welcomeMessage === 'string' ? settings.data.welcomeMessage : null) || "বিডিএম বাজারে স্বাগতম !"}
+                {(typeof settings?.data?.welcomeMessage === 'string' ? settings.data.welcomeMessage : null) || "Ruh24 এ স্বাগতম !"}
               </div>
               <div className="flex space-x-6 items-center">
                 {topBarItems.map((item, index) => (
